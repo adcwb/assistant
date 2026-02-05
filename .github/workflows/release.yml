@@ -156,6 +156,21 @@ jobs:
           tar -czf release-packages/source-code.tar.gz --exclude='node_modules' --exclude='.git' .
           echo "已打包源代码: release-packages/source-code.tar.gz"
 
+      - name: Check files before release
+        run: |
+          echo "检查要上传的文件..."
+          echo "=== release-packages目录 ==="
+          ls -la release-packages/ 2>/dev/null || echo "release-packages目录不存在"
+          echo ""
+          echo "=== 检查文件是否存在 ==="
+          for file in release-packages/* package.json README.md LICENSE; do
+            if [ -e "$file" ]; then
+              echo "✅ 文件存在: $file"
+            else
+              echo "❌ 文件不存在: $file"
+            fi
+          done
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -167,9 +182,10 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
+          make_latest: true
+          fail_on_unmatched_files: false
           files: |
-            release-packages/**
-            dist/build/**
+            release-packages/*
             package.json
             README.md
             LICENSE
