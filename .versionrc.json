@@ -1,0 +1,20 @@
+{
+  "types": [
+    { "type": "feat", "section": "✨ 新功能" },
+    { "type": "fix", "section": "🐛 问题修复" },
+    { "type": "docs", "section": "📚 文档更新" },
+    { "type": "style", "section": "💄 代码样式" },
+    { "type": "refactor", "section": "♻️ 代码重构" },
+    { "type": "perf", "section": "⚡ 性能优化" },
+    { "type": "test", "section": "✅ 测试相关" },
+    { "type": "build", "section": "📦 构建系统" },
+    { "type": "ci", "section": "🔧 持续集成" },
+    { "type": "chore", "section": "🔨 其他更新" },
+    { "type": "revert", "section": "⏪ 回退更改" }
+  ],
+  "commitUrlFormat": "https://github.com/adcwb/assistant/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/adcwb/assistant/compare/{{previousTag}}...{{currentTag}}",
+  "issueUrlFormat": "https://github.com/adcwb/assistant/issues/{{id}}",
+  "userUrlFormat": "https://github.com/{{user}}",
+  "releaseCommitMessageFormat": "chore(release): {{currentTag}}"
+}
