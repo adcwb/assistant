@@ -2,10 +2,16 @@ name: Release
 
 on:
   push:
-    branches:
-      - master
     tags:
       - "v*" # 推送v开头的标签时触发
+
+  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号 (如: v0.0.1)"
+        required: true
+        default: "v0.0.1"
 
 jobs:
   release:
@@ -38,46 +44,63 @@ jobs:
         id: package_version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Generate changelog
-        id: changelog
-        uses: requarks/changelog-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
-          writeToFile: true
-          file: CHANGELOG.md
-          excludeTypes: "docs,chore,style,refactor,test"
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # 获取标签名
+          if [ -n "${{ github.ref_name }}" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+
+          # 获取最近的提交信息（最多20条）
+          echo "获取提交历史..."
+          CHANGES=$(git log --oneline --no-merges -n 20 2>/dev/null || echo "首次发布")
+
+          # 创建Release正文
+          cat > RELEASE_BODY.md << EOF
+          ## 🚀 新版本发布 $TAG
+
+          ### 📦 构建信息
+          - **版本号**: $TAG
+          - **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')
+          - **提交**: ${{ github.sha }}
+
+          ### 📝 最近更新
+          \`\`\`
+          $CHANGES
+          \`\`\`
+
+          ### 📁 构建产物
+          构建完成的应用位于 \`dist/\` 目录中。
+
+          ### 🔧 使用说明
+          1. H5版本可直接部署到Web服务器
+          2. 小程序版本需使用对应平台开发者工具导入
+
+          ---
+
+          *自动生成于 GitHub Actions*
+          EOF
+
+          # 输出Release正文
+          RELEASE_BODY=$(cat RELEASE_BODY.md)
+          echo "release_body<<EOF" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           name: Release v${{ steps.package_version.outputs.version }}
-          body: |
-            ## 🚀 新版本发布 v${{ steps.package_version.outputs.version }}
-
-            ### 📦 构建信息
-            - **版本号**: v${{ steps.package_version.outputs.version }}
-            - **构建时间**: ${{ steps.changelog.outputs.date }}
-            - **提交**: ${{ github.sha }}
-
-            ### 📝 更新日志
-            ${{ steps.changelog.outputs.changes }}
-
-            ### 📁 构建产物
-            构建完成的应用位于 `dist/` 目录中。
-
-            ### 🔧 使用说明
-            1. H5版本可直接部署到Web服务器
-            2. 小程序版本需使用对应平台开发者工具导入
-
-            ---
-
-            *自动生成于 GitHub Actions*
+          body: ${{ steps.release_notes.outputs.release_body }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             dist/**
             package.json
@@ -93,53 +116,23 @@ jobs:
             package.json
           retention-days: 30
 
-  version-bump:
+  # 简单的版本更新检查（可选）
+  check-version:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
 
       - name: Check for version bump
-        id: check_version
         run: |
           # 检查最近的提交是否包含版本更新
           if git log --oneline -n 5 | grep -i "release\|version\|bump\|chore(release)"; then
-            echo "has_version_bump=true" >> $GITHUB_OUTPUT
+            echo "检测到版本更新提交"
+            echo "建议执行: npm version patch && git push origin v\$(node -p \"require('./package.json').version\")"
           else
-            echo "has_version_bump=false" >> $GITHUB_OUTPUT
+            echo "未检测到版本更新提交"
           fi
-
-      - name: Conventional Changelog Action
-        if: steps.check_version.outputs.has_version_bump == 'true'
-        id: changelog
-        uses: TriPSs/conventional-changelog-action@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version-file: "./package.json"
-          skip-version-file: false
-          skip-commit: false
-          output-file: "CHANGELOG.md"
-          tag-prefix: "v"
-          release-count: "10"
-
-      - name: Create Tag
-        if: steps.check_version.outputs.has_version_bump == 'true'
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a "v${VERSION}" -m "Release v${VERSION}"
-          git push origin "v${VERSION}"
