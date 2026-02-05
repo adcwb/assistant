@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "Vue.volar",
+    "Vue.vscode-typescript-vue-plugin",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "antfu.unocss",
+    "mrmlnc.vscode-json5",
+    "ms-vscode.vscode-typescript-next",
+    "ms-vscode.js-debug",
+    "ms-vscode.vscode-js-profile-flame"
+  ]
+}
