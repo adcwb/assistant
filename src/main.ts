@@ -6,11 +6,12 @@
  *
  * @file main.ts
  * @author AICode
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import { createSSRApp } from "vue";
 import App from "./App.vue";
+import { pinia } from "./stores/index";
 
 /**
  * 创建Vue应用实例
@@ -28,6 +29,9 @@ import App from "./App.vue";
 export function createApp() {
   // 创建SSR应用实例
   const app = createSSRApp(App);
+
+  // 使用Pinia状态管理
+  app.use(pinia);
 
   // 返回应用实例，供UniApp框架挂载和使用
   return {

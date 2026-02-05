@@ -106,11 +106,11 @@
 
         <button
           class="login-button"
-          :class="{ loading: isLoading }"
-          :disabled="isLoading"
+          :class="{ loading: userStore.loginLoading }"
+          :disabled="userStore.loginLoading"
           @tap="handlePasswordLogin"
         >
-          <text v-if="!isLoading">登录</text>
+          <text v-if="!userStore.loginLoading">登录</text>
           <view v-else class="loading-spinner"></view>
         </button>
 
@@ -186,11 +186,11 @@
 
         <button
           class="login-button"
-          :class="{ loading: isLoading }"
-          :disabled="isLoading"
+          :class="{ loading: userStore.loginLoading }"
+          :disabled="userStore.loginLoading"
           @tap="handleSmsLogin"
         >
-          <text v-if="!isLoading">登录</text>
+          <text v-if="!userStore.loginLoading">登录</text>
           <view v-else class="loading-spinner"></view>
         </button>
       </view>
@@ -215,6 +215,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUserStore } from "@/stores/user";
 import { onLoad } from "@dcloudio/uni-app";
 import { reactive, ref } from "vue";
 
@@ -229,8 +230,10 @@ type LoginType = "password" | "sms";
 const loginType = ref<LoginType>("password");
 const showPassword = ref(false);
 const rememberMe = ref(false);
-const isLoading = ref(false);
 const smsCountdown = ref(0);
+
+// Pinia store
+const userStore = useUserStore();
 
 // 表单数据
 const form = reactive({
@@ -310,23 +313,23 @@ const handlePasswordLogin = async () => {
     return;
   }
 
-  isLoading.value = true;
+  // 设置记住我状态
+  userStore.setRememberMe(rememberMe.value);
+  if (rememberMe.value) {
+    userStore.setUsername(form.username);
+  }
 
-  try {
-    // 模拟登录请求
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  // 调用Pinia store的登录方法
+  const result = await userStore.login({
+    username: form.username,
+    password: form.password,
+  });
 
-    // 登录成功
+  if (result.success) {
     uni.showToast({
       title: "登录成功",
       icon: "success",
     });
-
-    // 保存登录状态
-    if (rememberMe.value) {
-      uni.setStorageSync("rememberMe", true);
-      uni.setStorageSync("username", form.username);
-    }
 
     // 跳转到首页
     setTimeout(() => {
@@ -334,13 +337,11 @@ const handlePasswordLogin = async () => {
         url: "/pages/index/index",
       });
     }, 1000);
-  } catch (error) {
+  } else {
     uni.showToast({
-      title: "登录失败，请检查账号密码",
+      title: result.error || "登录失败，请检查账号密码",
       icon: "none",
     });
-  } finally {
-    isLoading.value = false;
   }
 };
 
@@ -372,13 +373,13 @@ const handleSmsLogin = async () => {
     return;
   }
 
-  isLoading.value = true;
+  // 调用Pinia store的手机号登录方法
+  const result = await userStore.loginByPhone({
+    phone: form.phone,
+    smsCode: form.smsCode,
+  });
 
-  try {
-    // 模拟登录请求
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // 登录成功
+  if (result.success) {
     uni.showToast({
       title: "登录成功",
       icon: "success",
@@ -390,13 +391,11 @@ const handleSmsLogin = async () => {
         url: "/pages/index/index",
       });
     }, 1000);
-  } catch (error) {
+  } else {
     uni.showToast({
-      title: "登录失败，请检查验证码",
+      title: result.error || "登录失败，请检查验证码",
       icon: "none",
     });
-  } finally {
-    isLoading.value = false;
   }
 };
 
@@ -453,9 +452,9 @@ const navigateToPrivacy = () => {
 
 // 页面加载
 onLoad(() => {
-  // 检查是否有记住的账号
-  if (uni.getStorageSync("rememberMe")) {
-    form.username = uni.getStorageSync("username") || "";
+  // 从Pinia store恢复记住我状态
+  if (userStore.rememberMe && userStore.username) {
+    form.username = userStore.username;
     rememberMe.value = true;
   }
 });

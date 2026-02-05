@@ -1,15 +1,15 @@
 /**
- * 用户状态管理
+ * 用户状态管理 (Pinia版本)
  *
  * 此文件管理用户相关的全局状态，包括登录状态、用户信息等。
- * 使用Vue的响应式系统进行状态管理，确保状态的一致性和响应式。
+ * 使用Pinia进行状态管理，支持持久化存储。
  *
  * @file user.ts
  * @author AICode
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-import { computed, ref } from "vue";
+import { defineStore } from "pinia";
 
 /**
  * 用户信息接口
@@ -40,190 +40,196 @@ export interface AuthToken {
   tokenType: string;
 }
 
-// 全局状态
-const token = ref<string>("");
-const userInfo = ref<UserInfo | null>(null);
-const loginLoading = ref(false);
-const loginError = ref<string | null>(null);
-
 /**
- * 用户状态管理
+ * 用户状态管理Store
  */
-export const useUserStore = () => {
+export const useUserStore = defineStore("user", {
+  // 持久化配置
+  persist: {
+    key: "user-store",
+    storage: {
+      getItem(key: string): string | null {
+        return uni.getStorageSync(key);
+      },
+      setItem(key: string, value: string) {
+        uni.setStorageSync(key, value);
+      },
+    },
+  },
+
+  // 状态定义
+  state: () => ({
+    token: "" as string,
+    userInfo: null as UserInfo | null,
+    loginLoading: false,
+    loginError: null as string | null,
+    rememberMe: false,
+    username: "",
+  }),
+
   // 计算属性
-  const isLoggedIn = computed(() => !!token.value);
+  getters: {
+    isLoggedIn: (state) => !!state.token,
+    fullName: (state) =>
+      state.userInfo?.nickname || state.userInfo?.username || "",
+    userLevel: (state) => state.userInfo?.level || "普通会员",
+  },
 
-  /**
-   * 用户登录
-   * @param credentials - 登录凭证
-   */
-  const login = async (credentials: { username: string; password: string }) => {
-    loginLoading.value = true;
-    loginError.value = null;
+  // 操作方法
+  actions: {
+    /**
+     * 用户登录
+     * @param credentials - 登录凭证
+     */
+    async login(credentials: { username: string; password: string }) {
+      this.loginLoading = true;
+      this.loginError = null;
 
-    try {
-      // 模拟API调用
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        // 模拟API调用
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // 模拟登录成功
-      const mockUserInfo: UserInfo = {
-        id: "20240001",
-        username: credentials.username,
-        nickname: "智能助手用户",
-        avatar: "/static/logo.png",
-        phone: "138****8888",
-        email: `${credentials.username}@example.com`,
-        gender: "unknown",
-        birthday: "1990-01-01",
-        bio: "这个人很懒，什么都没有留下~",
-        level: "VIP会员",
-        vipLevel: 1,
-        createTime: "2024-01-01 00:00:00",
-        lastLoginTime: new Date().toISOString(),
-      };
+        // 模拟登录成功
+        const mockUserInfo: UserInfo = {
+          id: "20240001",
+          username: credentials.username,
+          nickname: "智能助手用户",
+          avatar: "/static/logo.png",
+          phone: "138****8888",
+          email: `${credentials.username}@example.com`,
+          gender: "unknown",
+          birthday: "1990-01-01",
+          bio: "这个人很懒，什么都没有留下~",
+          level: "VIP会员",
+          vipLevel: 1,
+          createTime: "2024-01-01 00:00:00",
+          lastLoginTime: new Date().toISOString(),
+        };
 
-      const mockToken = "mock_access_token_" + Date.now();
+        const mockToken = "mock_access_token_" + Date.now();
 
-      // 更新状态
-      token.value = mockToken;
-      userInfo.value = mockUserInfo;
+        // 更新状态
+        this.token = mockToken;
+        this.userInfo = mockUserInfo;
 
-      // 保存到本地存储
-      uni.setStorageSync("token", mockToken);
-      uni.setStorageSync("userInfo", mockUserInfo);
+        // 如果记住我，保存用户名
+        if (this.rememberMe) {
+          this.username = credentials.username;
+        }
 
-      return { success: true, userInfo: mockUserInfo };
-    } catch (error) {
-      loginError.value = error instanceof Error ? error.message : "登录失败";
-      return { success: false, error: loginError.value };
-    } finally {
-      loginLoading.value = false;
-    }
-  };
+        return { success: true, userInfo: mockUserInfo };
+      } catch (error) {
+        this.loginError = error instanceof Error ? error.message : "登录失败";
+        return { success: false, error: this.loginError };
+      } finally {
+        this.loginLoading = false;
+      }
+    },
 
-  /**
-   * 手机号登录
-   * @param credentials - 手机号登录凭证
-   */
-  const loginByPhone = async (credentials: {
-    phone: string;
-    smsCode: string;
-  }) => {
-    loginLoading.value = true;
-    loginError.value = null;
+    /**
+     * 手机号登录
+     * @param credentials - 手机号登录凭证
+     */
+    async loginByPhone(credentials: { phone: string; smsCode: string }) {
+      this.loginLoading = true;
+      this.loginError = null;
 
-    try {
-      // 模拟API调用
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        // 模拟API调用
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // 模拟登录成功
-      const mockUserInfo: UserInfo = {
-        id: "20240002",
-        username: credentials.phone,
-        nickname: "手机用户",
-        avatar: "/static/logo.png",
-        phone: credentials.phone,
-        email: `${credentials.phone}@example.com`,
-        gender: "unknown",
-        birthday: "1990-01-01",
-        bio: "通过手机号注册的用户",
-        level: "普通会员",
-        vipLevel: 0,
-        createTime: "2024-01-01 00:00:00",
-        lastLoginTime: new Date().toISOString(),
-      };
+        // 模拟登录成功
+        const mockUserInfo: UserInfo = {
+          id: "20240002",
+          username: credentials.phone,
+          nickname: "手机用户",
+          avatar: "/static/logo.png",
+          phone: credentials.phone,
+          email: `${credentials.phone}@example.com`,
+          gender: "unknown",
+          birthday: "1990-01-01",
+          bio: "通过手机号注册的用户",
+          level: "普通会员",
+          vipLevel: 0,
+          createTime: "2024-01-01 00:00:00",
+          lastLoginTime: new Date().toISOString(),
+        };
 
-      const mockToken = "mock_phone_token_" + Date.now();
+        const mockToken = "mock_phone_token_" + Date.now();
 
-      // 更新状态
-      token.value = mockToken;
-      userInfo.value = mockUserInfo;
+        // 更新状态
+        this.token = mockToken;
+        this.userInfo = mockUserInfo;
 
-      // 保存到本地存储
-      uni.setStorageSync("token", mockToken);
-      uni.setStorageSync("userInfo", mockUserInfo);
+        return { success: true, userInfo: mockUserInfo };
+      } catch (error) {
+        this.loginError =
+          error instanceof Error ? error.message : "手机号登录失败";
+        return { success: false, error: this.loginError };
+      } finally {
+        this.loginLoading = false;
+      }
+    },
 
-      return { success: true, userInfo: mockUserInfo };
-    } catch (error) {
-      loginError.value =
-        error instanceof Error ? error.message : "手机号登录失败";
-      return { success: false, error: loginError.value };
-    } finally {
-      loginLoading.value = false;
-    }
-  };
+    /**
+     * 退出登录
+     */
+    logout() {
+      // 清除状态
+      this.token = "";
+      this.userInfo = null;
+      this.loginError = null;
 
-  /**
-   * 退出登录
-   */
-  const logout = () => {
-    // 清除状态
-    token.value = "";
-    userInfo.value = null;
+      // 清除本地存储（除了记住我选项）
+      if (!this.rememberMe) {
+        this.username = "";
+      }
 
-    // 清除本地存储
-    uni.removeStorageSync("token");
-    uni.removeStorageSync("userInfo");
-    uni.removeStorageSync("rememberMe");
-    uni.removeStorageSync("username");
+      // 跳转到登录页
+      uni.reLaunch({
+        url: "/pages/login/index",
+      });
+    },
 
-    // 跳转到登录页
-    uni.reLaunch({
-      url: "/pages/login/index",
-    });
-  };
+    /**
+     * 更新用户信息
+     * @param info - 新的用户信息
+     */
+    updateUserInfo(info: Partial<UserInfo>) {
+      if (this.userInfo) {
+        this.userInfo = { ...this.userInfo, ...info };
+      }
+    },
 
-  /**
-   * 更新用户信息
-   * @param info - 新的用户信息
-   */
-  const updateUserInfo = (info: Partial<UserInfo>) => {
-    if (userInfo.value) {
-      userInfo.value = { ...userInfo.value, ...info };
-      uni.setStorageSync("userInfo", userInfo.value);
-    }
-  };
+    /**
+     * 检查登录状态
+     */
+    checkLoginStatus() {
+      // Pinia持久化会自动恢复状态
+      return !!this.token;
+    },
 
-  /**
-   * 检查登录状态
-   */
-  const checkLoginStatus = () => {
-    const savedToken = uni.getStorageSync("token");
-    const savedUserInfo = uni.getStorageSync("userInfo");
+    /**
+     * 初始化用户状态
+     */
+    initUserState() {
+      this.checkLoginStatus();
+    },
 
-    if (savedToken && savedUserInfo) {
-      token.value = savedToken;
-      userInfo.value = savedUserInfo;
-      return true;
-    }
+    /**
+     * 设置记住我状态
+     * @param remember - 是否记住我
+     */
+    setRememberMe(remember: boolean) {
+      this.rememberMe = remember;
+    },
 
-    return false;
-  };
-
-  /**
-   * 初始化用户状态
-   */
-  const initUserState = () => {
-    checkLoginStatus();
-  };
-
-  return {
-    // 状态
-    token,
-    userInfo,
-    isLoggedIn,
-    loginLoading,
-    loginError,
-
-    // 方法
-    login,
-    loginByPhone,
-    logout,
-    updateUserInfo,
-    checkLoginStatus,
-    initUserState,
-  };
-};
-
-// 导出单例
-export const userStore = useUserStore();
+    /**
+     * 设置用户名（用于记住我功能）
+     * @param username - 用户名
+     */
+    setUsername(username: string) {
+      this.username = username;
+    },
+  },
+});
