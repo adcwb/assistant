@@ -37,8 +37,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project
+      - name: Build H5 version
         run: npm run build:h5
+
+      - name: Build WeChat Mini Program
+        run: |
+          # 尝试构建微信小程序，如果失败则跳过
+          npm run build:mp-weixin 2>/dev/null || echo "微信小程序构建失败或未配置，已跳过"
+
+      - name: Build Alipay Mini Program
+        run: |
+          # 尝试构建支付宝小程序，如果失败则跳过
+          npm run build:mp-alipay 2>/dev/null || echo "支付宝小程序构建失败或未配置，已跳过"
 
       - name: Get version from package.json
         id: package_version
@@ -58,6 +68,22 @@ jobs:
           echo "获取提交历史..."
           CHANGES=$(git log --oneline --no-merges -n 20 2>/dev/null || echo "首次发布")
 
+          # 检查构建产物
+          BUILD_OUTPUTS=""
+          if [ -d "dist/build/h5" ]; then
+            BUILD_OUTPUTS="$BUILD_OUTPUTS\n- **H5版本**: 位于 \`dist/build/h5/\` 目录"
+          fi
+          if [ -d "dist/build/mp-weixin" ]; then
+            BUILD_OUTPUTS="$BUILD_OUTPUTS\n- **微信小程序**: 位于 \`dist/build/mp-weixin/\` 目录"
+          fi
+          if [ -d "dist/build/mp-alipay" ]; then
+            BUILD_OUTPUTS="$BUILD_OUTPUTS\n- **支付宝小程序**: 位于 \`dist/build/mp-alipay/\` 目录"
+          fi
+
+          if [ -z "$BUILD_OUTPUTS" ]; then
+            BUILD_OUTPUTS="- **H5版本**: 位于 \`dist/\` 目录"
+          fi
+
           # 创建Release正文
           cat > RELEASE_BODY.md << EOF
           ## 🚀 新版本发布 $TAG
@@ -73,11 +99,21 @@ jobs:
           \`\`\`
 
           ### 📁 构建产物
-          构建完成的应用位于 \`dist/\` 目录中。
+          $BUILD_OUTPUTS
 
           ### 🔧 使用说明
-          1. H5版本可直接部署到Web服务器
-          2. 小程序版本需使用对应平台开发者工具导入
+          1. **H5版本**: 可直接部署到Web服务器
+          2. **微信小程序**: 使用微信开发者工具导入 \`dist/build/mp-weixin/\` 目录
+          3. **支付宝小程序**: 使用支付宝开发者工具导入 \`dist/build/mp-alipay/\` 目录
+          4. **Android/iOS**: 需使用HBuilderX进行原生打包
+
+          ### 🚀 多端支持
+          本项目基于UniApp开发，支持以下平台：
+          - 📱 H5网页版
+          - 💬 微信小程序
+          - 💰 支付宝小程序
+          - 🤖 Android原生应用
+          - 🍎 iOS原生应用
 
           ---
 
@@ -89,6 +125,36 @@ jobs:
           echo "release_body<<EOF" >> $GITHUB_OUTPUT
           echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Package build outputs
+        run: |
+          # 创建压缩包
+          mkdir -p release-packages
+
+          # 压缩H5版本
+          if [ -d "dist/build/h5" ]; then
+            tar -czf release-packages/h5-build.tar.gz -C dist/build/h5 .
+            echo "已打包H5版本: release-packages/h5-build.tar.gz"
+          elif [ -d "dist" ]; then
+            tar -czf release-packages/h5-build.tar.gz -C dist .
+            echo "已打包H5版本: release-packages/h5-build.tar.gz"
+          fi
+
+          # 压缩微信小程序
+          if [ -d "dist/build/mp-weixin" ]; then
+            tar -czf release-packages/wechat-miniprogram.tar.gz -C dist/build/mp-weixin .
+            echo "已打包微信小程序: release-packages/wechat-miniprogram.tar.gz"
+          fi
+
+          # 压缩支付宝小程序
+          if [ -d "dist/build/mp-alipay" ]; then
+            tar -czf release-packages/alipay-miniprogram.tar.gz -C dist/build/mp-alipay .
+            echo "已打包支付宝小程序: release-packages/alipay-miniprogram.tar.gz"
+          fi
+
+          # 创建完整的源代码包
+          tar -czf release-packages/source-code.tar.gz --exclude='node_modules' --exclude='.git' .
+          echo "已打包源代码: release-packages/source-code.tar.gz"
 
       - name: Create Release
         id: create_release
@@ -102,7 +168,8 @@ jobs:
           prerelease: false
           generate_release_notes: false
           files: |
-            dist/**
+            release-packages/**
+            dist/build/**
             package.json
             README.md
             LICENSE
@@ -112,6 +179,7 @@ jobs:
         with:
           name: assistant-build-v${{ steps.package_version.outputs.version }}
           path: |
+            release-packages/
             dist/
             package.json
           retention-days: 30
